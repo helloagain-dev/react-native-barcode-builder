@@ -61,19 +61,11 @@ export default class Barcode extends Component {
     const encoder = barcodes[this.props.format];
     const encoded = this.encode(this.props.value, encoder, this.props);
 
-    let singleBarcodeWidth = this.state.width / encoded.data.length;
-
-    // if its flexible, set min and max values
-    if (this.props.width === 0) {
-      singleBarcodeWidth = Math.max(singleBarcodeWidth, 0.5);
-      singleBarcodeWidth = Math.min(singleBarcodeWidth, 2.5);
-    }
-
     if (encoded) {
       this.setState({
         bars: this.drawSvgBarCode(encoded, {
           ...this.props,
-          width: singleBarcodeWidth,
+          width: this.state.width / encoded.data.length,
         }),
       });
     }
