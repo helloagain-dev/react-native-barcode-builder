@@ -1,12 +1,12 @@
-import React, { PureComponent } from 'react';
-import { View, StyleSheet, ART, Text } from 'react-native';
+import React, { Component } from 'react';
+import { View, ART, Text } from 'react-native';
 import PropTypes from 'prop-types';
 
 import barcodes from 'jsbarcode/src/barcodes';
 
 const { Surface, Shape } = ART;
 
-export default class Barcode extends PureComponent {
+export default class Barcode extends Component {
   static propTypes = {
     /* what the barCode stands for */
     value: PropTypes.string,
@@ -14,7 +14,8 @@ export default class Barcode extends PureComponent {
     format: PropTypes.oneOf(Object.keys(barcodes)),
     /* Overide the text that is diplayed */
     text: PropTypes.string,
-    /* The width option is the width of a single bar. */
+    /* The width option is the width of the whole barcode.
+    If 0 or not set, the barcode self-aligns. */
     width: PropTypes.number,
     /* The height of the barcode. */
     height: PropTypes.number,
@@ -22,54 +23,64 @@ export default class Barcode extends PureComponent {
     lineColor: PropTypes.string,
     /* Set the color of the text. */
     textColor: PropTypes.string,
+    /* Set the font of the text */
+    textFont: PropTypes.string,
     /* Set the background of the barcode. */
     background: PropTypes.string,
     /* Handle error for invalid barcode of selected format */
-    onError: PropTypes.func
+    onError: PropTypes.func,
   };
 
   static defaultProps = {
-    value: undefined,
+    value: null,
     format: 'CODE128',
-    text: undefined,
-    width: 2,
+    text: null,
+    width: 0,
     height: 100,
     lineColor: '#000000',
     textColor: '#000000',
+    textFont: 'System',
     background: '#ffffff',
-    onError: undefined
+    onError: null,
   };
 
   constructor(props) {
     super(props);
+
     this.state = {
       bars: [],
-      barCodeWidth: 0
+      width: this.props.width,
     };
   }
 
-  componentWillUpdate(nextProps) {
-    if (nextProps.value !== this.props.value) {
-      this.update(nextProps);
-    }
-  }
-
-  componentDidMount() {
+  componentWillReceiveProps() {
     this.update();
   }
 
-  componentDidUpdate() {
-    this.update();
-  }
-
-  update() {
+  update = () => {
     const encoder = barcodes[this.props.format];
     const encoded = this.encode(this.props.value, encoder, this.props);
 
-    if (encoded) {
-      this.state.bars = this.drawSvgBarCode(encoded, this.props);
-      this.state.barCodeWidth = encoded.data.length * this.props.width;
+    let singleBarcodeWidth = this.state.width / encoded.data.length;
+
+    // if its flexible, set min and max values
+    if (this.props.width === 0) {
+      singleBarcodeWidth = Math.max(singleBarcodeWidth, 0.5);
+      singleBarcodeWidth = Math.min(singleBarcodeWidth, 2.5);
     }
+
+    if (encoded) {
+      this.setState({
+        bars: this.drawSvgBarCode(encoded, {
+          ...this.props,
+          width: singleBarcodeWidth,
+        }),
+      });
+    }
+  };
+
+  drawRect(x, y, width, height) {
+    return `M${x},${y}h${width}v${height}h-${width}z`;
   }
 
   drawSvgBarCode(encoding, options = {}) {
@@ -79,8 +90,7 @@ export default class Barcode extends PureComponent {
 
     let barWidth = 0;
     let x = 0;
-    let yFrom = 0;
-    // alert(JSON.stringify(options));
+    const yFrom = 0;
 
     for (let b = 0; b < binary.length; b++) {
       x = b * options.width;
@@ -110,45 +120,33 @@ export default class Barcode extends PureComponent {
     return rects;
   }
 
-  drawRect(x, y, width, height) {
-    return `M${x},${y}h${width}v${height}h-${width}z`;
-  }
-
-  getTotalWidthOfEncodings(encodings) {
-    let totalWidth = 0;
-    for (let i = 0; i < encodings.length; i++) {
-      totalWidth += encodings[i].width;
-    }
-    return totalWidth;
-  }
-
   // encode() handles the Encoder call and builds the binary string to be rendered
   encode(text, Encoder, options) {
     // Ensure that text is a string
     text = '' + text;
 
-    var encoder;
+    let encoder;
 
     try {
       encoder = new Encoder(text, options);
     } catch (error) {
       // If the encoder could not be instantiated, throw error.
-      if (this.props.onError)  {
+      if (this.props.onError) {
         this.props.onError(new Error('Invalid barcode format.'));
-        return;
-      } else {
-        throw new Error('Invalid barcode format.');
+        return null;
       }
+
+      throw new Error('Invalid barcode format.');
     }
 
     // If the input is not valid for the encoder, throw error.
     if (!encoder.valid()) {
       if (this.props.onError) {
         this.props.onError(new Error('Invalid barcode for selected format.'));
-        return;
-      } else {
-        throw new Error('Invalid barcode for selected format.');
+        return null;
       }
+
+      throw new Error('Invalid barcode for selected format.');
     }
 
     // Make a request for the binary data (and other infromation) that should be rendered
@@ -156,32 +154,64 @@ export default class Barcode extends PureComponent {
     //  text: 'xxxxx',
     //  data: '110100100001....'
     // }
-    var encoded = encoder.encode();
+    const encoded = encoder.encode();
 
     return encoded;
   }
 
   render() {
-    this.update();
-    const backgroundStyle = {
-      backgroundColor: this.props.background
-    };
+    let containerStyle = { };
+
+    if (this.props.width === 0) {
+      containerStyle = {
+        flex: 1,
+        alignSelf: 'stretch',
+      };
+    } else {
+      containerStyle = {
+        width: this.props.width,
+      };
+    }
+
     return (
-      <View style={[styles.svgContainer, backgroundStyle]}>
-        <Surface height={this.props.height} width={this.state.barCodeWidth}>
+      <View
+        style={{
+          ...containerStyle,
+          alignItems: 'center',
+          backgroundColor: this.props.background,
+          paddingLeft: 15,
+          paddingRight: 15,
+          paddingTop: 10,
+          paddingBottom: 10,
+          borderRadius: 10,
+        }}
+        onLayout={e => {
+          this.setState({
+            width: e.nativeEvent.layout.width - 30,
+          });
+          this.update();
+        }}
+      >
+        <Surface height={this.props.height} width={this.state.width}>
           <Shape d={this.state.bars} fill={this.props.lineColor} />
         </Surface>
-        { typeof(this.props.text) != 'undefined' &&
-          <Text style={{color: this.props.textColor, width: this.state.barCodeWidth, textAlign: 'center'}} >{this.props.text}</Text>
+        {
+          this.props.text && (
+            <Text
+              style={{
+                fontSize: 15,
+                marginTop: 5,
+                color: this.props.textColor,
+                width: this.state.width,
+                textAlign: 'center',
+                fontFamily: this.props.textFont,
+              }}
+            >
+              {this.props.text}
+            </Text>
+          )
         }
       </View>
     );
   }
 }
-
-const styles = StyleSheet.create({
-  svgContainer: {
-    alignItems: 'center',
-    padding: 10
-  }
-});
