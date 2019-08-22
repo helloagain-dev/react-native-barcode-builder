@@ -15,7 +15,6 @@ export default class Barcode extends Component {
     /* Overide the text that is diplayed */
     text: PropTypes.string,
     /* The width option is the width of the whole barcode.
-    If 0 or not set, the barcode self-aligns. */
     width: PropTypes.number,
     /* The height of the barcode. */
     height: PropTypes.number,
@@ -53,7 +52,7 @@ export default class Barcode extends Component {
     };
   }
 
-  componentWillReceiveProps() {
+  componentDidMount() {
     this.update();
   }
 
@@ -176,12 +175,6 @@ export default class Barcode extends Component {
           paddingTop: 10,
           paddingBottom: 10,
           borderRadius: 10,
-        }}
-        onLayout={e => {
-          this.setState({
-            width: e.nativeEvent.layout.width - 30,
-          });
-          this.update();
         }}
       >
         <Surface height={this.props.height} width={this.state.width}>
